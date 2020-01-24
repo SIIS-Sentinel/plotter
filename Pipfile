@@ -10,6 +10,7 @@ autopep8 = "*"
 pylint = "*"
 sqlalchemy = "*"
 psycopg2 = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3"

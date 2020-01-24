@@ -59,7 +59,7 @@ class Measurement(Base):
     node = relationship("Node", back_populates="measurements")
 
     def __repr__(self):
-        return "Measurement(%s, %s, %0.1f, %f)" % (self.node, self.sensor, self.timestamp, self.value)
+        return "Measurement(%s, %s, %0.1f, %f)" % (self.node.name, self.sensor.name, self.timestamp, self.value)
 
 
 # Create and connect to the database
