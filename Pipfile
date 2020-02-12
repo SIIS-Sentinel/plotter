@@ -11,6 +11,8 @@ pylint = "*"
 sqlalchemy = "*"
 psycopg2 = "*"
 matplotlib = "*"
+flake8 = "*"
+mypy = "*"
 
 [requires]
 python_version = "3"
