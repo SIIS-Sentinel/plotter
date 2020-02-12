@@ -1,9 +1,10 @@
 from sqlalchemy import create_engine, Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from typing import Any
 
 
-Base = declarative_base()
+Base = declarative_base()  # type: Any
 hub_ip = "130.203.33.156"
 db_path = "postgresql://pi:password@%s/watchtower" % hub_ip
 
@@ -15,6 +16,7 @@ class Node(Base):
     events = relationship("Event", back_populates="node")
     sensors = relationship("Sensor", back_populates="node")
     measurements = relationship("Measurement", back_populates="node")
+    attacks = relationship("Attack", back_populates="node")
 
     def __repr__(self):
         return "Node(%s)" % (self.name)
@@ -61,8 +63,17 @@ class Measurement(Base):
         return "Measurement(%s, %s, %0.1f, %f)" % (self.node.name, self.sensor.name, self.timestamp, self.value)
 
 
+class Attack(Base):
+    __tablename__ = "attacks"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(Float)
+    attack_type = Column(Integer)
+    node_id = Column(Integer, ForeignKey('nodes.id'))
+    node = relationship("Node", back_populates="attacks")
+
+
 # Create and connect to the database
-engine = create_engine(db_path)
+engine = create_engine(db_path, echo=False)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
