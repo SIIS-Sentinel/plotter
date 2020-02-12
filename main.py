@@ -3,6 +3,7 @@ from sql import session, Node, Event, Measurement, Sensor
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import argparse
+from math import ceil, sqrt
 
 
 # Given a node name, returns its ID
@@ -56,8 +57,11 @@ def get_sensor_unit(node_name: str, sensor_name: str) -> str:
 
 
 def animate(frame: int, node_name: str, sensor_name: str) -> None:
-    # node_name, sensor_name = names
     data: List[Tuple[float, float]] = get_data_tuples(node_name, sensor_name)
+    # Prune data before buffer
+    if args.buffer and args.buffer < len(data):
+        n: int = len(data)
+        data = data[n - args.buffer:]
     ts: List[float] = [e[0] for e in data]
     val: List[float] = [e[1] for e in data]
     unit = get_sensor_unit(node_name, sensor_name)
@@ -68,6 +72,42 @@ def animate(frame: int, node_name: str, sensor_name: str) -> None:
     plt.xlabel("Time (s)")
     plt.legend(loc='upper left')
     plt.tight_layout()
+
+
+def animate_all(frame: int, node_name: str, axes) -> None:
+    sensors: List[str] = get_all_sensors(args.all)
+    data: list = []
+
+    # Prune data before before buffer
+    tmp: list = get_data_tuples(node_name, sensors[0])
+    if args.buffer and args.buffer < len(tmp):
+        n = len(tmp)
+        for sensor in sensors:
+            subdata: list = get_data_tuples(node_name, sensor)[
+                n - args.buffer:]
+            data.append(subdata)
+    # Do not prune
+    else:
+        for sensor in sensors:
+            data.append(get_data_tuples(node_name, sensor))
+
+    plt.gcf().canvas.flush_events()
+    for i in range(len(sensors)):
+        ts_offset: List[float] = [e[0] for e in data[i]]
+        offset: float = ts_offset[0]
+        ts: List[float] = [e - offset for e in ts_offset]
+        values: List[float] = [e[1] for e in data[i]]
+        ax = axes.reshape(-1)[i]
+        ax.clear()
+        ax.plot(ts, values, label=sensors[i])
+        ax.legend(loc='upper left')
+    plt.tight_layout()
+
+
+def get_subplot_format(num_graphs: int) -> Tuple[int, int]:
+    cols: int = ceil(sqrt(num_graphs))
+    rows: int = ceil(num_graphs / cols)
+    return (cols, rows)
 
 
 if __name__ == "__main__":
@@ -83,6 +123,10 @@ if __name__ == "__main__":
                         help="List all the available sensors of the given node")
     parser.add_argument("--plot", metavar="name",
                         nargs=2, type=str, help="Node and sensor name to plot")
+    parser.add_argument("--all", metavar="node", type=str,
+                        help="Plot all available sensors for the given node")
+    parser.add_argument("--buffer", metavar="duration",
+                        type=int, help="Maximum number of data points plotted at once")
     args = parser.parse_args()
     if args.listnodes:
         nodes = get_all_nodes()
@@ -90,10 +134,17 @@ if __name__ == "__main__":
         for node in nodes:
             print("* %s" % node)
     elif args.listsensors:
-        sensors = get_all_sensors(args.listsensors)
+        sensors: List[str] = get_all_sensors(args.listsensors)
         print("Available sensors:")
         for sensor in sensors:
             print("* %s" % sensor)
+    elif args.all:
+        num_sensors: int = len(get_all_sensors(args.all))
+        (cols, rows) = get_subplot_format(num_sensors)
+        fig, axes = plt.subplots(rows, cols)
+        anim = FuncAnimation(fig, animate_all,
+                             interval=1000, fargs=[args.all, axes])
+        plt.show()
     elif args.node and args.sensor:
         anim = FuncAnimation(plt.gcf(), animate, interval=1000,
                              fargs=[args.node, args.sensor])
