@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+import sqlalchemy
 from typing import Any
 
 
@@ -76,4 +77,4 @@ class Attack(Base):
 engine = create_engine(db_path, echo=False)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
-session = Session()
+session: sqlalchemy.orm.Session = Session()

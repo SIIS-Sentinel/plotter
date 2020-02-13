@@ -3,14 +3,15 @@ import argparse
 import time
 import config as cfg
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from sql import session, Node, Measurement, Sensor, Attack
 from matplotlib.animation import FuncAnimation
 from math import ceil, sqrt
+from operator import itemgetter
 
 
 def get_node_id(name: str) -> int:
-    # Given a node name, returns its ID
+    """Given a node name, returns its ID"""
     node = session.query(Node.id).filter_by(name=name).all()
     if len(node) == 0:
         return 0
@@ -18,7 +19,7 @@ def get_node_id(name: str) -> int:
 
 
 def get_sensor_id(sensor_name: str, node_name: str) -> int:
-    # Given a sensor/node name, returns its ID
+    """Given a sensor/node name, returns its ID"""
     node_id = session.query(Node.id).filter_by(name=node_name).all()
     sensor = session.query(Sensor.id).filter_by(
         name=sensor_name, node_id=node_id[0].id).all()
@@ -28,7 +29,7 @@ def get_sensor_id(sensor_name: str, node_name: str) -> int:
 
 
 def get_data_tuples(node_name: str, sensor_name: str) -> List[Tuple[float, float]]:
-    # Returns the list of all data points for the given node/sensor
+    """Returns the list of all data points for the given node/sensor"""
     node_id: int = get_node_id(node_name)
     sensor_id: int = get_sensor_id(sensor_name, node_name)
     values: list = session.query(Measurement).filter_by(
@@ -39,7 +40,7 @@ def get_data_tuples(node_name: str, sensor_name: str) -> List[Tuple[float, float
 
 
 def get_data_tuples_after_ts(node_name: str, sensor_name: str, cutoff_ts: float) -> List[Tuple[float, float]]:
-    # Returns the list of all data points for the given node/sensor after the given timestamp
+    """Returns the list of all data points for the given node/sensor after the given timestamp"""
     node_id: int = get_node_id(node_name)
     sensor_id: int = get_sensor_id(sensor_name, node_name)
     values: list = session.\
@@ -53,8 +54,35 @@ def get_data_tuples_after_ts(node_name: str, sensor_name: str, cutoff_ts: float)
     return tuples
 
 
+def get_data_tuples_batch_after_ts(node_name: str, sensor_list: List[str], cutoff_ts: float) -> Dict[str, List[Tuple[float, float]]]:
+    """Returns a list of list of tuples of all the sensors requested """
+    node_id: int = get_node_id(node_name)
+    sensor_id_list: List[Tuple[str, int]] = [
+        (s, get_sensor_id(s, node_name)) for s in sensor_list]
+    values_blob: list = session.\
+        query(Measurement.value, Measurement.timestamp, Measurement.sensor_id).\
+        filter_by(node_id=node_id).\
+        filter(Measurement.sensor_id.in_([s[1] for s in sensor_id_list])).\
+        filter(Measurement.timestamp >= cutoff_ts).\
+        all()
+    values: Dict[str, List[Tuple[float, float]]] = {}
+    for sensor in sensor_id_list:
+        tmp_value: List[Tuple[float, float]] = []
+        for value in values_blob[::-1]:  # Go over the list backwards
+            if value.sensor_id == sensor[1]:
+                tmp_value.append((value.timestamp, value.value))
+                values_blob.remove(value)
+        tmp_value.sort(key=itemgetter(0))
+        values[sensor[0]] = tmp_value
+    return values
+
+
+def get_data_tuples_batch(node_name: str, sensor_list: List[str]) -> Dict[str, List[Tuple[float, float]]]:
+    return get_data_tuples_batch_after_ts(node_name, sensor_list, 0)
+
+
 def get_all_sensors(node_name: str) -> List[str]:
-    # Returns the list of all sensors for the given node in the database
+    """Returns the list of all sensors for the given node in the database """
     node_id: int = get_node_id(node_name)
     sensors: list = session.query(Sensor).filter_by(node_id=node_id).all()
     sensors_str: List[str] = [e.name for e in sensors]
@@ -62,21 +90,21 @@ def get_all_sensors(node_name: str) -> List[str]:
 
 
 def get_all_nodes() -> List[str]:
-    # Returns the list of all nodes names stored in the database
+    """Returns the list of all nodes names stored in the database """
     nodes: list = session.query(Node).all()
     nodes_str: List[str] = [e.name for e in nodes]
     return nodes_str
 
 
 def get_sensor_unit(node_name: str, sensor_name: str) -> str:
-    # Returns the unit of the sensor
+    """Returns the unit of the sensor"""
     sensor_id = get_sensor_id(sensor_name, node_name)
     sensor = session.query(Sensor).filter_by(id=sensor_id).all()
     return sensor[0].unit
 
 
 def get_node_attacks(node_name: str) -> List[Tuple[float, int]]:
-    # Returns a list of tuples of timestamp/attack_type
+    """Returns a list of tuples of timestamp/attack_type"""
     node_id: int = get_node_id(node_name)
     attacks: List[Attack] = session.query(
         Attack).filter_by(node_id=node_id).all()
@@ -86,7 +114,7 @@ def get_node_attacks(node_name: str) -> List[Tuple[float, int]]:
 
 
 def get_node_attacks_after_ts(node_name: str, cutoff_ts: float) -> List[Tuple[float, int]]:
-    # Returns a list of tuples of timestamp/attack_type of attacks after the given timestamp
+    """Returns a list of tuples of timestamp/attack_type of attacks after the given timestamp """
     attacks_all: List[Tuple[float, int]] = get_node_attacks(node_name)
     attacks_cutoff: List[Tuple[float, int]] = [
         a for a in attacks_all if a[0] >= cutoff_ts]
@@ -94,7 +122,7 @@ def get_node_attacks_after_ts(node_name: str, cutoff_ts: float) -> List[Tuple[fl
 
 
 def remove_useless_sensors(all_sensors: List[str]) -> List[str]:
-    # Removes useless sensors from the given sensors list
+    """Removes useless sensors from the given sensors list """
     for sensor in cfg.useless_sensor:
         if sensor in all_sensors:
             all_sensors.remove(sensor)
@@ -102,7 +130,7 @@ def remove_useless_sensors(all_sensors: List[str]) -> List[str]:
 
 
 def animate(frame: int, node_name: str, sensor_name: str) -> None:
-    # Prune data before buffer
+    """Prune data before buffer"""
     if args.buffer:
         current_time: float = time.time()
         cutoff_ts: float = current_time - args.buffer
@@ -130,28 +158,24 @@ def animate(frame: int, node_name: str, sensor_name: str) -> None:
 
 def animate_all(frame: int, node_name: str, axes) -> None:
     sensors: List[str] = remove_useless_sensors(get_all_sensors(args.all))
-    data: list = []
-
-    # Prune data before before buffer
+    # Get the data
     current_time: float = time.time()
     if args.buffer:
+        # Prune data before before buffer
         cutoff_ts: float = current_time - args.buffer
-        for sensor in sensors:
-            subdata: list = get_data_tuples_after_ts(
-                node_name, sensor, cutoff_ts)
-            data.append(subdata)
-    # Do not prune
+        data_dict: Dict[str, List[Tuple[float, float]]] = get_data_tuples_batch_after_ts(
+            node_name, sensors, cutoff_ts)
     else:
-        for sensor in sensors:
-            data.append(get_data_tuples(node_name, sensor))
+        # Do not prune
+        data_dict = get_data_tuples_batch(node_name, sensors)
     plt.gcf().canvas.flush_events()
     attacks_all: List[Tuple[float, int]] = get_node_attacks(node_name)
-    for i in range(len(sensors)):
-        ts_offset: List[float] = [e[0] for e in data[i]]
+    for i, s in enumerate(sensors):
+        ts_offset: List[float] = [e[0] for e in data_dict[s]]
         offset: float = ts_offset[0]
         attacks = [a for a in attacks_all if a[0] >= offset]
         ts: List[float] = [e - offset for e in ts_offset]
-        values: List[float] = [e[1] for e in data[i]]
+        values: List[float] = [e[1] for e in data_dict[s]]
         ax = axes.reshape(-1)[i]
         ax.clear()
         ax.plot(ts, values, label=sensors[i])
@@ -162,6 +186,7 @@ def animate_all(frame: int, node_name: str, axes) -> None:
 
 
 def get_subplot_format(num_graphs: int) -> Tuple[int, int]:
+    """Returns an optimal number of cols/rows for the given number of plots """
     cols: int = ceil(sqrt(num_graphs))
     rows: int = ceil(num_graphs / cols)
     return (cols, rows)
