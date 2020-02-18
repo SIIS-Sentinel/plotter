@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib
 import argparse
 import time
 import config as cfg
@@ -156,7 +157,7 @@ def animate(frame: int, node_name: str, sensor_name: str) -> None:
     plt.tight_layout()
 
 
-def animate_all(frame: int, node_name: str, axes) -> None:
+def animate_all(frame: int, node_name: str, axes: matplotlib.axes.Axes) -> None:
     sensors: List[str] = remove_useless_sensors(get_all_sensors(args.all))
     # Get the data
     current_time: float = time.time()
@@ -224,6 +225,8 @@ if __name__ == "__main__":
         num_sensors: int = len(
             remove_useless_sensors(get_all_sensors(args.all)))
         (cols, rows) = get_subplot_format(num_sensors)
+        fig: matplotlib.figure.Figure
+        axes: matplotlib.axes.Axes
         fig, axes = plt.subplots(rows, cols)
         anim = FuncAnimation(fig, animate_all,
                              interval=1000, fargs=[args.all, axes])
