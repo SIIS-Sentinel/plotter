@@ -3,7 +3,10 @@ import matplotlib
 import argparse
 import time
 import config as cfg
+import pyqtgraph as pg
+import sys
 
+from pyqtgraph.Qt import QtGui, QtCore
 from typing import List, Tuple, Dict
 from sql import session, Node, Measurement, Sensor, Attack
 from matplotlib.animation import FuncAnimation
@@ -193,6 +196,45 @@ def get_subplot_format(num_graphs: int) -> Tuple[int, int]:
     return (cols, rows)
 
 
+def getWinCurves(win: pg.graphicsItems.PlotDataItem.PlotDataItem) -> List[pg.graphicsItems.PlotDataItem.PlotDataItem]:
+    return [e for e in win.items() if type(e) == pg.graphicsItems.PlotDataItem.PlotDataItem]
+
+
+def getWinPlots(win: pg.graphicsItems.PlotDataItem.PlotDataItem) -> List[pg.graphicsItems.PlotItem.PlotItem]:
+    return [e for e in win.items() if type(e) == pg.graphicsItems.PlotItem.PlotItem]
+
+
+def plot_all_qt():
+    global win, app, qtArgs
+    # Get the sensors list
+    sensors: List[str] = remove_useless_sensors(get_all_sensors(args.all))
+    # Get the plot objects
+    curves: List[pg.graphicsItems.PlotDataItem.PlotDataItem] = getWinCurves(
+        win)
+    # Get the data to plot
+    current_time: float = time.time()
+    if args.buffer:
+        cutoff_ts: float = current_time - args.buffer
+        data_dict: Dict[str, List[Tuple[float, float]]] = get_data_tuples_batch_after_ts(
+            args.all, sensors, cutoff_ts)
+    else:
+        data_dict = get_data_tuples_batch(args.all, sensors)
+    # If necessary, create the curves and legend the first time
+    if len(curves) == 0:
+        plots = getWinPlots(win)
+        for i, sensor in enumerate(sensors):
+            plots[i].addLegend()
+            plots[i].plot(name=sensor)
+        curves = getWinCurves(win)
+    # Plot the data
+    for i, sensor in enumerate(sensors):
+        offset: float = data_dict[sensor][0][0]
+        x = [e[0] - offset for e in data_dict[sensor]]
+        y = [e[1] for e in data_dict[sensor]]
+        curves[i].setData(x, y, pen=pg.mkPen('b', width=3))
+    app.processEvents()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Plot real-time Watchtower data.')
@@ -210,6 +252,8 @@ if __name__ == "__main__":
                         help="Plot all available sensors for the given node")
     parser.add_argument("--buffer", metavar="duration",
                         type=int, help="Sliding time window of plotting (in s)")
+    parser.add_argument("--qt", action="store_true",
+                        help="Use PyQtGraph instead of Matplotlib (faster graphs)")
     args = parser.parse_args()
     if args.listnodes:
         nodes = get_all_nodes()
@@ -222,15 +266,30 @@ if __name__ == "__main__":
         for sensor in sensors:
             print("* %s" % sensor)
     elif args.all:
-        num_sensors: int = len(
-            remove_useless_sensors(get_all_sensors(args.all)))
+        sensors = remove_useless_sensors(get_all_sensors(args.all))
+        num_sensors: int = len(sensors)
         (cols, rows) = get_subplot_format(num_sensors)
-        fig: matplotlib.figure.Figure
-        axes: matplotlib.axes.Axes
-        fig, axes = plt.subplots(rows, cols)
-        anim = FuncAnimation(fig, animate_all,
-                             interval=1000, fargs=[args.all, axes])
-        plt.show()
+        if not args.qt:
+            fig: matplotlib.figure.Figure
+            axes: matplotlib.axes.Axes
+            fig, axes = plt.subplots(rows, cols)
+            anim = FuncAnimation(fig, animate_all,
+                                 interval=1000, fargs=[args.all, axes])
+            plt.show()
+        else:
+            pg.setConfigOptions(background='w', foreground='k')
+            app = QtGui.QApplication([])
+            win = pg.GraphicsWindow()
+            for i in range(rows):
+                for j in range(cols):
+                    plt = win.addPlot(row=i, col=j)
+            qtArgs = {"node_name": args.all}
+            timer = QtCore.QTimer()
+            timer.timeout.connect(plot_all_qt)
+            timer.start(100)
+            if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_'):
+                QtGui.QApplication.instance().exec_()
+
     elif args.node and args.sensor:
         anim = FuncAnimation(plt.gcf(), animate, interval=1000,
                              fargs=[args.node, args.sensor])

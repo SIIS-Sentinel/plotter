@@ -12,6 +12,8 @@ psycopg2 = "*"
 matplotlib = "*"
 flake8 = "*"
 mypy = "*"
+pyqtgraph = "*"
+pyqt5 = "*"
 
 [requires]
 python_version = "3"
