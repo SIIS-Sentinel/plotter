@@ -2,135 +2,14 @@ import matplotlib.pyplot as plt
 import matplotlib
 import argparse
 import time
-import config as cfg
 import pyqtgraph as pg
 import sys
+import data_query as dq
 
 from pyqtgraph.Qt import QtGui, QtCore
 from typing import List, Tuple, Dict
-from sql import session, Node, Measurement, Sensor, Attack
 from matplotlib.animation import FuncAnimation
 from math import ceil, sqrt
-from operator import itemgetter
-
-
-def get_node_id(name: str) -> int:
-    """Given a node name, returns its ID"""
-    node = session.query(Node.id).filter_by(name=name).all()
-    if len(node) == 0:
-        return 0
-    return node[0].id
-
-
-def get_sensor_id(sensor_name: str, node_name: str) -> int:
-    """Given a sensor/node name, returns its ID"""
-    node_id = session.query(Node.id).filter_by(name=node_name).all()
-    sensor = session.query(Sensor.id).filter_by(
-        name=sensor_name, node_id=node_id[0].id).all()
-    if len(sensor) == 0:
-        return 0
-    return sensor[0].id
-
-
-def get_data_tuples(node_name: str, sensor_name: str) -> List[Tuple[float, float]]:
-    """Returns the list of all data points for the given node/sensor"""
-    node_id: int = get_node_id(node_name)
-    sensor_id: int = get_sensor_id(sensor_name, node_name)
-    values: list = session.query(Measurement).filter_by(
-        node_id=node_id, sensor_id=sensor_id).all()
-    tuples: List[Tuple[float, float]] = [
-        (e.timestamp, e.value) for e in values]
-    return tuples
-
-
-def get_data_tuples_after_ts(node_name: str, sensor_name: str, cutoff_ts: float) -> List[Tuple[float, float]]:
-    """Returns the list of all data points for the given node/sensor after the given timestamp"""
-    node_id: int = get_node_id(node_name)
-    sensor_id: int = get_sensor_id(sensor_name, node_name)
-    values: list = session.\
-        query(Measurement.value, Measurement.timestamp).\
-        filter_by(node_id=node_id, sensor_id=sensor_id).\
-        filter(Measurement.timestamp >= cutoff_ts).\
-        order_by(Measurement.timestamp).\
-        all()
-    tuples: List[Tuple[float, float]] = [
-        (e.timestamp, e.value) for e in values]
-    return tuples
-
-
-def get_data_tuples_batch_after_ts(node_name: str, sensor_list: List[str], cutoff_ts: float) -> Dict[str, List[Tuple[float, float]]]:
-    """Returns a list of list of tuples of all the sensors requested """
-    node_id: int = get_node_id(node_name)
-    sensor_id_list: List[Tuple[str, int]] = [
-        (s, get_sensor_id(s, node_name)) for s in sensor_list]
-    values_blob: list = session.\
-        query(Measurement.value, Measurement.timestamp, Measurement.sensor_id).\
-        filter_by(node_id=node_id).\
-        filter(Measurement.sensor_id.in_([s[1] for s in sensor_id_list])).\
-        filter(Measurement.timestamp >= cutoff_ts).\
-        all()
-    values: Dict[str, List[Tuple[float, float]]] = {}
-    for sensor in sensor_id_list:
-        tmp_value: List[Tuple[float, float]] = []
-        for value in values_blob[::-1]:  # Go over the list backwards
-            if value.sensor_id == sensor[1]:
-                tmp_value.append((value.timestamp, value.value))
-                values_blob.remove(value)
-        tmp_value.sort(key=itemgetter(0))
-        values[sensor[0]] = tmp_value
-    return values
-
-
-def get_data_tuples_batch(node_name: str, sensor_list: List[str]) -> Dict[str, List[Tuple[float, float]]]:
-    return get_data_tuples_batch_after_ts(node_name, sensor_list, 0)
-
-
-def get_all_sensors(node_name: str) -> List[str]:
-    """Returns the list of all sensors for the given node in the database """
-    node_id: int = get_node_id(node_name)
-    sensors: list = session.query(Sensor).filter_by(node_id=node_id).all()
-    sensors_str: List[str] = [e.name for e in sensors]
-    return sensors_str
-
-
-def get_all_nodes() -> List[str]:
-    """Returns the list of all nodes names stored in the database """
-    nodes: list = session.query(Node).all()
-    nodes_str: List[str] = [e.name for e in nodes]
-    return nodes_str
-
-
-def get_sensor_unit(node_name: str, sensor_name: str) -> str:
-    """Returns the unit of the sensor"""
-    sensor_id = get_sensor_id(sensor_name, node_name)
-    sensor = session.query(Sensor).filter_by(id=sensor_id).all()
-    return sensor[0].unit
-
-
-def get_node_attacks(node_name: str) -> List[Tuple[float, int]]:
-    """Returns a list of tuples of timestamp/attack_type"""
-    node_id: int = get_node_id(node_name)
-    attacks: List[Attack] = session.query(
-        Attack).filter_by(node_id=node_id).all()
-    attacks_list: List[Tuple[float, int]] = [
-        (a.timestamp, a.attack_type) for a in attacks]
-    return attacks_list
-
-
-def get_node_attacks_after_ts(node_name: str, cutoff_ts: float) -> List[Tuple[float, int]]:
-    """Returns a list of tuples of timestamp/attack_type of attacks after the given timestamp """
-    attacks_all: List[Tuple[float, int]] = get_node_attacks(node_name)
-    attacks_cutoff: List[Tuple[float, int]] = [
-        a for a in attacks_all if a[0] >= cutoff_ts]
-    return attacks_cutoff
-
-
-def remove_useless_sensors(all_sensors: List[str]) -> List[str]:
-    """Removes useless sensors from the given sensors list """
-    for sensor in cfg.useless_sensor:
-        if sensor in all_sensors:
-            all_sensors.remove(sensor)
-    return all_sensors
 
 
 def animate(frame: int, node_name: str, sensor_name: str) -> None:
@@ -138,16 +17,16 @@ def animate(frame: int, node_name: str, sensor_name: str) -> None:
     if args.buffer:
         current_time: float = time.time()
         cutoff_ts: float = current_time - args.buffer
-        data: List[Tuple[float, float]] = get_data_tuples_after_ts(
+        data: List[Tuple[float, float]] = dq.get_data_tuples_after_ts(
             node_name, sensor_name, cutoff_ts)
     else:
-        data = get_data_tuples(
+        data = dq.get_data_tuples(
             node_name, sensor_name)
     ts: List[float] = [e[0] for e in data]
     val: List[float] = [e[1] for e in data]
-    unit: str = get_sensor_unit(node_name, sensor_name)
+    unit: str = dq.get_sensor_unit(node_name, sensor_name)
     attacks: List[Tuple[float, int]
-                  ] = get_node_attacks_after_ts(node_name, ts[0])
+                  ] = dq.get_node_attacks_after_ts(node_name, ts[0])
 
     plt.cla()
     # Plot the values
@@ -161,19 +40,20 @@ def animate(frame: int, node_name: str, sensor_name: str) -> None:
 
 
 def animate_all(frame: int, node_name: str, axes: matplotlib.axes.Axes) -> None:
-    sensors: List[str] = remove_useless_sensors(get_all_sensors(args.all))
+    sensors: List[str] = dq.remove_useless_sensors(
+        dq.get_all_sensors(args.all))
     # Get the data
     current_time: float = time.time()
     if args.buffer:
         # Prune data before before buffer
         cutoff_ts: float = current_time - args.buffer
-        data_dict: Dict[str, List[Tuple[float, float]]] = get_data_tuples_batch_after_ts(
+        data_dict: Dict[str, List[Tuple[float, float]]] = dq.get_data_tuples_batch_after_ts(
             node_name, sensors, cutoff_ts)
     else:
         # Do not prune
-        data_dict = get_data_tuples_batch(node_name, sensors)
+        data_dict = dq.get_data_tuples_batch(node_name, sensors)
     plt.gcf().canvas.flush_events()
-    attacks_all: List[Tuple[float, int]] = get_node_attacks(node_name)
+    attacks_all: List[Tuple[float, int]] = dq.get_node_attacks(node_name)
     for i, s in enumerate(sensors):
         ts_offset: List[float] = [e[0] for e in data_dict[s]]
         offset: float = ts_offset[0]
@@ -207,7 +87,8 @@ def getWinPlots(win: pg.graphicsItems.PlotDataItem.PlotDataItem) -> List[pg.grap
 def plot_all_qt():
     global win, app, qtArgs
     # Get the sensors list
-    sensors: List[str] = remove_useless_sensors(get_all_sensors(args.all))
+    sensors: List[str] = dq.remove_useless_sensors(
+        dq.get_all_sensors(args.all))
     # Get the plot objects
     curves: List[pg.graphicsItems.PlotDataItem.PlotDataItem] = getWinCurves(
         win)
@@ -215,10 +96,10 @@ def plot_all_qt():
     current_time: float = time.time()
     if args.buffer:
         cutoff_ts: float = current_time - args.buffer
-        data_dict: Dict[str, List[Tuple[float, float]]] = get_data_tuples_batch_after_ts(
+        data_dict: Dict[str, List[Tuple[float, float]]] = dq.get_data_tuples_batch_after_ts(
             args.all, sensors, cutoff_ts)
     else:
-        data_dict = get_data_tuples_batch(args.all, sensors)
+        data_dict = dq.get_data_tuples_batch(args.all, sensors)
     # If necessary, create the curves and legend the first time
     if len(curves) == 0:
         plots = getWinPlots(win)
@@ -256,17 +137,17 @@ if __name__ == "__main__":
                         help="Use PyQtGraph instead of Matplotlib (faster graphs)")
     args = parser.parse_args()
     if args.listnodes:
-        nodes = get_all_nodes()
+        nodes = dq.get_all_nodes()
         print("Available nodes: ")
         for node in nodes:
             print("* %s" % node)
     elif args.listsensors:
-        sensors: List[str] = get_all_sensors(args.listsensors)
+        sensors: List[str] = dq.get_all_sensors(args.listsensors)
         print("Available sensors:")
         for sensor in sensors:
             print("* %s" % sensor)
     elif args.all:
-        sensors = remove_useless_sensors(get_all_sensors(args.all))
+        sensors = dq.remove_useless_sensors(dq.get_all_sensors(args.all))
         num_sensors: int = len(sensors)
         (cols, rows) = get_subplot_format(num_sensors)
         if not args.qt:
