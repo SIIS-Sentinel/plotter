@@ -7,7 +7,8 @@ from typing import Any
 
 Base = declarative_base()  # type: Any
 hub_ip = "130.203.33.156"
-db_path = "postgresql://pi:password@%s/watchtower" % hub_ip
+# db_path = "postgresql://pi:password@%s/watchtower" % hub_ip
+db_path = "sqlite:///test_db.db"
 
 
 class Node(Base):
