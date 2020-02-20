@@ -73,6 +73,7 @@ class SettingsWindow(QtGui.QWidget):
 
         # Create a list of checkboxes of all the nodes
         nodesLayout = QtWidgets.QVBoxLayout()
+        nodesLayout.setStretch(0, 0)
         nodesLabeL = QtWidgets.QLabel("Nodes to plot: ")
         nodesLayout.addWidget(nodesLabeL)
         self.nodeButtons: dict = {}
@@ -86,6 +87,16 @@ class SettingsWindow(QtGui.QWidget):
 
         self.setLayout(layout)
         self.show()
+
+    def updateSensors(self):
+        """ When a node checkbox is toggled, this function dynamically hides and shows the corredponding sensor checkboxes"""
+        for node in self.master.nodes:
+            if not self.nodeButtons[node].isChecked():
+                # Hide all the sensors buttons
+                pass
+            else:
+                # Show all the sensor buttons
+                pass
 
 
 def main():
