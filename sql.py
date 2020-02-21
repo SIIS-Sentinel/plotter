@@ -45,7 +45,7 @@ class Sensor(Base):
     std = Column(Float)
     node_id = Column(Integer, ForeignKey('nodes.id'))
     node = relationship("Node", back_populates="sensors")
-    measurements = relationship("Measurement",  back_populates="sensor")
+    measurements = relationship("Measurement", back_populates="sensor")
 
     def __repr__(self):
         return "Sensor(%s, %s, %s, %0.2f, %0.2f)" % (self.node, self.name, self.unit, self.average, self.std)
