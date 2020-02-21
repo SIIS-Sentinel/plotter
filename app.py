@@ -1,10 +1,11 @@
 import sys
 import pyqtgraph as pg
 import data_query as dq
+import time
 
-from PyQt5 import QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets, QtCore
 from sql import session
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from functools import partial
 
 
@@ -18,10 +19,17 @@ class PlotsWindow(QtGui.QWidget):
         self.height: int = 400
         self.buffer: int = 60  # Buffer in seconds
         self.maxBuffer: int = 300  # Buffer in seconds
-        self.timerTimeout: int = 500  # Timeout in milliseconds
+        self.timerTimeout: int = 100  # Timeout in milliseconds
         self.session = session
         self.getNodesAndSensors()
         self.initUI()
+        self.startTimer()
+
+    def startTimer(self):
+        self.timer: QtCore.QTimer = QtCore.QTimer()
+        self.timer.setInterval(self.timerTimeout)
+        self.timer.timeout.connect(self.drawPlots)
+        self.timer.start()
 
     def initUI(self) -> None:
         self.setWindowTitle(self.title)
@@ -51,20 +59,53 @@ class PlotsWindow(QtGui.QWidget):
         self.nodeGrids: Dict[str, pg.GraphicsLayoutWidget] = {}
         for node in self.nodes:
             self.nodeGrids[node] = pg.GraphicsLayoutWidget()
-            # self.nodeGrids[node].centralLayout().
-            self.nodeGrids[node].centralWidget.setBorder(pg.mkPen('r'))
+            self.nodeGrids[node].hide()
 
-    def createAllPlots(self):
+    def createAllPlots(self) -> None:
         self.plots: Dict[str, Dict[str, pg.PlotWidget]] = {}
         for i, node in enumerate(self.nodes):
             self.plots[node] = {}
             for j, sensor in enumerate(self.sensors[node]):
                 plot = pg.PlotItem(title=node + "/" + sensor)
                 plot.hide()
-                print("Created plot %s/%s" % (node, sensor))
                 self.plots[node][sensor] = plot
-                # Add plot to plots grid
                 self.nodeGrids[node].addItem(plot)
+
+    def drawPlots(self):
+        """ Queries the data from the database and draws all the visible plots """
+        visibleSensors: Dict[str, List[str]] = self.getVisibleSensors()
+        for node in visibleSensors.keys():
+            cutoff_ts: float = time.time() - self.buffer
+            data: Dict[str, List[Tuple[float, float]]] = dq.get_data_tuples_batch_after_ts(
+                node, visibleSensors[node], cutoff_ts)
+            for sensor in visibleSensors[node]:
+                if len(data[sensor]) != 0:
+                    xOffset: float = data[sensor][0][0]
+                    xData: List[float] = [e[0] - xOffset for e in data[sensor]]
+                    yData: List[float] = [e[1] for e in data[sensor]]
+                    plot = self.plots[node][sensor]
+                    plot.clear()
+                    plot.plot(xData, yData, name=node + "/" +
+                              sensor, pen=pg.mkPen("b", width=3))
+                    plot.setXRange(0, self.buffer)
+
+    def getVisibleNodes(self) -> List[str]:
+        """ Returns a list of all nodes that are currently visible """
+        visibleNodes: List[str] = []
+        for node in self.nodes:
+            if self.nodeGrids[node].isVisible():
+                visibleNodes.append(node)
+        return visibleNodes
+
+    def getVisibleSensors(self) -> Dict[str, List[str]]:
+        visibleNodes: List[str] = self.getVisibleNodes()
+        visibleSensors: Dict[str, List[str]] = {}
+        for node in visibleNodes:
+            visibleSensors[node] = []
+            for sensor in self.sensors[node]:
+                if self.plots[node][sensor].isVisible():
+                    visibleSensors[node].append(sensor)
+        return visibleSensors
 
     def hideNode(self, node):
         self.nodeGrids[node].hide()
@@ -191,6 +232,7 @@ class SettingsWindow(QtGui.QWidget):
 
 
 def main():
+    # pg.setConfigOptions(background="w", foreground="k")
     app = pg.QtGui.QApplication(sys.argv)
     app.setApplicationName("Plotter")
     plots_win: PlotsWindow = PlotsWindow(session)

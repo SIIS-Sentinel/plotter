@@ -94,6 +94,6 @@ if __name__ == "__main__":
             node_id = dq.get_node_id(node)
             for sensor in sensors[node]:
                 sensor_id = dq.get_sensor_id(sensor, node)
-                value = math.sin(time.time()) + rd.random() * 0.1
+                value = math.sin(time.time() / 3.) + rd.random() * 0
                 add_measurement(meas_time, value, sensor_id, node_id)
-        time.sleep(0.5)
+        time.sleep(0.01)
