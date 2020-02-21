@@ -13,8 +13,8 @@ db_path = "sqlite:///test_db.db"
 
 class Node(Base):
     __tablename__ = "nodes"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
     events = relationship("Event", back_populates="node")
     sensors = relationship("Sensor", back_populates="node")
     measurements = relationship("Measurement", back_populates="node")
@@ -28,7 +28,7 @@ class Event(Base):
     __tablename__ = "events"
     id = Column(Integer, primary_key=True)
     event_type = Column(String)
-    timestamp = Column(Float)
+    timestamp = Column(Float, index=True)
     node_id = Column(Integer, ForeignKey('nodes.id'))
     node = relationship("Node", back_populates="events")
 
@@ -39,11 +39,11 @@ class Event(Base):
 class Sensor(Base):
     __tablename__ = "sensors"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String, index=True)
     unit = Column(String)
     average = Column(Float)
     std = Column(Float)
-    node_id = Column(Integer, ForeignKey('nodes.id'))
+    node_id = Column(Integer, ForeignKey('nodes.id'), index=True)
     node = relationship("Node", back_populates="sensors")
     measurements = relationship("Measurement", back_populates="sensor")
 
@@ -54,11 +54,11 @@ class Sensor(Base):
 class Measurement(Base):
     __tablename__ = "measurements"
     id = Column(Integer, primary_key=True)
-    timestamp = Column(Float)
+    timestamp = Column(Float, index=True)
     value = Column(Float)
-    sensor_id = Column(Integer, ForeignKey("sensors.id"))
+    sensor_id = Column(Integer, ForeignKey("sensors.id"), index=True)
     sensor = relationship("Sensor", back_populates="measurements")
-    node_id = Column(Integer, ForeignKey('nodes.id'))
+    node_id = Column(Integer, ForeignKey('nodes.id'), index=True)
     node = relationship("Node", back_populates="measurements")
 
     def __repr__(self):
@@ -70,7 +70,7 @@ class Attack(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(Float)
     attack_type = Column(Integer)
-    node_id = Column(Integer, ForeignKey('nodes.id'))
+    node_id = Column(Integer, ForeignKey('nodes.id'), index=True)
     node = relationship("Node", back_populates="attacks")
 
 

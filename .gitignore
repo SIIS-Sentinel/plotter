@@ -6,3 +6,6 @@
 
 # Test databases
 *.db
+
+# Profiling results
+results

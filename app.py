@@ -10,7 +10,7 @@ from functools import partial
 
 
 class PlotsWindow(QtGui.QWidget):
-    def __init__(self, session):
+    def __init__(self, _session, _maxIter=100, _profiling=False, _app=None):
         super().__init__()
         self.title: str = "Plots"
         self.left: int = 100
@@ -19,8 +19,12 @@ class PlotsWindow(QtGui.QWidget):
         self.height: int = 400
         self.buffer: int = 60  # Buffer in seconds
         self.maxBuffer: int = 300  # Buffer in seconds
-        self.timerTimeout: int = 100  # Timeout in milliseconds
-        self.session = session
+        self.timerTimeout: int = 0  # Timeout in milliseconds
+        self.iter: int = 0
+        self.maxiter: int = _maxIter
+        self.profiling: bool = _profiling
+        self.session = _session
+        self.app = _app
         self.getNodesAndSensors()
         self.initUI()
         self.startTimer()
@@ -59,20 +63,32 @@ class PlotsWindow(QtGui.QWidget):
         self.nodeGrids: Dict[str, pg.GraphicsLayoutWidget] = {}
         for node in self.nodes:
             self.nodeGrids[node] = pg.GraphicsLayoutWidget()
-            self.nodeGrids[node].hide()
+            if not self.profiling:
+                self.nodeGrids[node].hide()
 
     def createAllPlots(self) -> None:
         self.plots: Dict[str, Dict[str, pg.PlotWidget]] = {}
+        self.curves: Dict[str, Dict[str, pg.PlotDataItem]] = {}
         for i, node in enumerate(self.nodes):
             self.plots[node] = {}
+            self.curves[node] = {}
             for j, sensor in enumerate(self.sensors[node]):
-                plot = pg.PlotItem(title=node + "/" + sensor)
-                plot.hide()
+                name: str = "%s/%s" % (node, sensor)
+                plot = pg.PlotItem(title=name)
+                plot.enableAutoRange("x", False)
+                plot.enableAutoRange("y", True)
+                curve = plot.plot(name=name, pen=pg.mkPen("b", width=3))
+                if not self.profiling:
+                    plot.hide()
                 self.plots[node][sensor] = plot
+                self.curves[node][sensor] = curve
                 self.nodeGrids[node].addItem(plot)
 
     def drawPlots(self):
         """ Queries the data from the database and draws all the visible plots """
+        self.iter += 1
+        if self.profiling and self.iter > self.maxiter:
+            self.app.quit()
         visibleSensors: Dict[str, List[str]] = self.getVisibleSensors()
         for node in visibleSensors.keys():
             cutoff_ts: float = time.time() - self.buffer
@@ -84,9 +100,8 @@ class PlotsWindow(QtGui.QWidget):
                     xData: List[float] = [e[0] - xOffset for e in data[sensor]]
                     yData: List[float] = [e[1] for e in data[sensor]]
                     plot = self.plots[node][sensor]
-                    plot.clear()
-                    plot.plot(xData, yData, name=node + "/" +
-                              sensor, pen=pg.mkPen("b", width=3))
+                    curve = self.curves[node][sensor]
+                    curve.setData(xData, yData)
                     plot.setXRange(0, self.buffer)
 
     def getVisibleNodes(self) -> List[str]:
@@ -116,12 +131,10 @@ class PlotsWindow(QtGui.QWidget):
         self.updateLayout()
 
     def hidePlot(self, node: str, sensor: str):
-        # print("Hiding plot %s/%s" % (node, sensor))
         self.plots[node][sensor].hide()
         self.updateLayout()
 
     def showPlot(self, node: str, sensor: str):
-        # print("Showing plot %s/%s" % (node, sensor))
         self.plots[node][sensor].show()
         self.updateLayout()
 
@@ -224,7 +237,6 @@ class SettingsWindow(QtGui.QWidget):
 
     def sensorToggled(self, node: str, sensor: str) -> None:
         """ Called when a sensor checkbox is toggled """
-        print("Sensor %s/%s toggled" % (node, sensor))
         if self.sensorButtons[node][sensor].isChecked():
             self.master.showPlot(node, sensor)
         else:
@@ -232,11 +244,19 @@ class SettingsWindow(QtGui.QWidget):
 
 
 def main():
-    # pg.setConfigOptions(background="w", foreground="k")
+    pg.setConfigOptions(background="w", foreground="k")
     app = pg.QtGui.QApplication(sys.argv)
     app.setApplicationName("Plotter")
     plots_win: PlotsWindow = PlotsWindow(session)
     sett_win: SettingsWindow = SettingsWindow(plots_win)
+    sys.exit(app.exec_())
+
+
+def profile(maxIter: int):
+    app = pg.QtGui.QApplication(sys.argv)
+    app.setApplicationName("Plotter - Profiling")
+    plots_win = PlotsWindow(session, maxIter, True, app)
+    sett_win = SettingsWindow(plots_win)
     sys.exit(app.exec_())
 
 

@@ -11,24 +11,42 @@ from typing import List, Dict
 nodes: List[str] = [
     "node_1",
     "node_2",
-    "node_3"
+    "node_3",
+    "node_4"
 ]
 
 sensors: Dict[str, List[str]] = {
     "node_1": [
         "sensor_a",
         "sensor_b",
-        "sensor_c"
+        "sensor_c",
+        "sensor_d",
+        "sensor_e",
+        "sensor_f"
     ],
     "node_2": [
         "sensor_a",
         "sensor_b",
-        "sensor_c"
+        "sensor_c",
+        "sensor_d",
+        "sensor_e",
+        "sensor_f"
     ],
     "node_3": [
         "sensor_a",
         "sensor_b",
-        "sensor_c"
+        "sensor_c",
+        "sensor_d",
+        "sensor_e",
+        "sensor_f"
+    ],
+    "node_4": [
+        "sensor_a",
+        "sensor_b",
+        "sensor_c",
+        "sensor_d",
+        "sensor_e",
+        "sensor_f"
     ]
 }
 
@@ -96,4 +114,4 @@ if __name__ == "__main__":
                 sensor_id = dq.get_sensor_id(sensor, node)
                 value = math.sin(time.time() / 3.) + rd.random() * 0
                 add_measurement(meas_time, value, sensor_id, node_id)
-        time.sleep(0.01)
+        time.sleep(0.5)
