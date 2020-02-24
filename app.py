@@ -18,11 +18,14 @@ class PlotsWindow(QtGui.QWidget):
         self.width: int = 600
         self.height: int = 400
         self.buffer: int = 60  # Buffer in seconds
-        self.maxBuffer: int = 300  # Buffer in seconds
+        self.maxBuffer: int = 600  # Buffer in seconds
         self.timerTimeout: int = 0  # Timeout in milliseconds
         self.iter: int = 0
         self.maxiter: int = _maxIter
         self.profiling: bool = _profiling
+        self.curveColor: str = 'b'
+        self.attackCurveColor: str = 'r'
+        self.backgroundColor: str = pg.getConfigOption("background")
         self.session = _session
         self.app = _app
         self.getNodesAndSensors()
@@ -79,7 +82,7 @@ class PlotsWindow(QtGui.QWidget):
                 plot = pg.PlotItem(title=name)
                 plot.enableAutoRange("x", False)
                 plot.enableAutoRange("y", True)
-                curve = plot.plot(name=name, pen=pg.mkPen("b", width=3))
+                curve = plot.plot(name=name, pen=pg.mkPen(self.curveColor, width=3))
                 if not self.profiling:
                     plot.hide()
                 self.plots[node][sensor] = plot
@@ -116,11 +119,11 @@ class PlotsWindow(QtGui.QWidget):
                         except IndexError:
                             attack_curve = self.plots[node][sensor].addLine()
                             attack_curve.setAngle(90)
-                            attack_curve.setPen(pg.mkPen('r', width=3))
+                            attack_curve.setPen(pg.mkPen(self.attackCurveColor, width=3))
                             self.attack_curves[node][sensor].append(
                                 attack_curve)
                         attack_curve.setValue((attack_data[0] - xOffset, 0))
-                    while len(self.attack_curves[node][sensor]) > len(attack_data):
+                    while len(self.attack_curves[node][sensor]) > len(attacks_data):
                         # Prune unnecessary attack curves
                         curve: pg.InfiniteLine = self.attack_curves[node][sensor].pop()
                         self.plots[node][sensor].removeItem(curve)
@@ -165,6 +168,19 @@ class PlotsWindow(QtGui.QWidget):
         curr_height: int = self.frameGeometry().height()
         self.resize(curr_width, curr_height)
 
+    def updateBackground(self, themeBackground: str, themeAxis: str) -> None:
+        """ Updates the background of all plots to the given color """
+        for node in self.nodes:
+            self.nodeGrids[node].setBackground(themeBackground)
+            for sensor in self.sensors[node]:
+                self.plots[node][sensor].getAxis("bottom").setPen(themeAxis)
+                self.plots[node][sensor].getAxis("left").setPen(themeAxis)
+                self.plots[node][sensor].titleLabel.setText(node + "/" + sensor)
+                if themeAxis == "w":
+                    self.plots[node][sensor].titleLabel.setAttr("color", "000000")
+                else:
+                    self.plots[node][sensor].titleLabel.setAttr("color", "FFFFFF")
+
 
 class SettingsWindow(QtGui.QWidget):
     def __init__(self, _master: PlotsWindow):
@@ -195,6 +211,13 @@ class SettingsWindow(QtGui.QWidget):
         bufferLayout.addWidget(bufferLabel)
         bufferLayout.addWidget(self.bufferInput)
         layout.addLayout(bufferLayout)
+
+        # Create a dark mode button
+        themeLayout = QtWidgets.QHBoxLayout()
+        self.themeButton = QtWidgets.QCheckBox("Use dark theme")
+        self.themeButton.setChecked(False)
+        themeLayout.addWidget(self.themeButton)
+        layout.addLayout(themeLayout)
 
         # Create a list of checkboxes of all the nodes and sensors
         nodesLayout = QtWidgets.QVBoxLayout()
@@ -229,6 +252,8 @@ class SettingsWindow(QtGui.QWidget):
         """ Define the list of all button connections in the settings pane """
         # Buffer spinbox
         self.bufferInput.valueChanged.connect(self.bufferChanged)
+        # Theme button
+        self.themeButton.toggled.connect(self.themeChanged)
         # Node and sensor checkboxes
         for node in self.master.nodes:
             self.nodeButtons[node].toggled.connect(self.nodeToggled)
@@ -240,6 +265,16 @@ class SettingsWindow(QtGui.QWidget):
         """ When the buffer input is changed, updates the buffer value of the plotting window. Does not trigger an immediate re-plot """
         newBuffer: int = self.bufferInput.value()
         self.master.buffer = newBuffer
+
+    def themeChanged(self) -> None:
+        """ When the theme button is changed, swap the background color of the plots """
+        if self.themeButton.isChecked():
+            backgroundTheme: str = 'k'
+            axisTheme: str = 'w'
+        else:
+            backgroundTheme = 'w'
+            axisTheme = 'k'
+        self.master.updateBackground(backgroundTheme, axisTheme)
 
     def nodeToggled(self) -> None:
         """ When a node checkbox is toggled, this function dynamically hides and shows the corresponding sensor checkboxes. It also unchecks sensors of unchecked nodes."""
