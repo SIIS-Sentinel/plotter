@@ -9,3 +9,6 @@
 
 # Profiling results
 results
+
+# Pycache
+__pycache__/

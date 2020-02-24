@@ -69,9 +69,11 @@ class PlotsWindow(QtGui.QWidget):
     def createAllPlots(self) -> None:
         self.plots: Dict[str, Dict[str, pg.PlotWidget]] = {}
         self.curves: Dict[str, Dict[str, pg.PlotDataItem]] = {}
+        self.attack_curves: Dict[str, Dict[str, List[pg.InfiniteLine]]] = {}
         for i, node in enumerate(self.nodes):
             self.plots[node] = {}
             self.curves[node] = {}
+            self.attack_curves[node] = {}
             for j, sensor in enumerate(self.sensors[node]):
                 name: str = "%s/%s" % (node, sensor)
                 plot = pg.PlotItem(title=name)
@@ -82,6 +84,7 @@ class PlotsWindow(QtGui.QWidget):
                     plot.hide()
                 self.plots[node][sensor] = plot
                 self.curves[node][sensor] = curve
+                self.attack_curves[node][sensor] = []
                 self.nodeGrids[node].addItem(plot)
 
     def drawPlots(self):
@@ -94,8 +97,11 @@ class PlotsWindow(QtGui.QWidget):
             cutoff_ts: float = time.time() - self.buffer
             data: Dict[str, List[Tuple[float, float]]] = dq.get_data_tuples_batch_after_ts(
                 node, visibleSensors[node], cutoff_ts)
+            attacks_data: List[Tuple(float, int)] = dq.get_node_attacks_after_ts(
+                node, cutoff_ts)
             for sensor in visibleSensors[node]:
                 if len(data[sensor]) != 0:
+                    # Plot the sensor data
                     xOffset: float = data[sensor][0][0]
                     xData: List[float] = [e[0] - xOffset for e in data[sensor]]
                     yData: List[float] = [e[1] for e in data[sensor]]
@@ -103,6 +109,21 @@ class PlotsWindow(QtGui.QWidget):
                     curve = self.curves[node][sensor]
                     curve.setData(xData, yData)
                     plot.setXRange(0, self.buffer)
+                    # Plot the attacks markers
+                    for i, attack_data in enumerate(attacks_data):
+                        try:
+                            attack_curve: pg.InfiniteLine = self.attack_curves[node][sensor][i]
+                        except IndexError:
+                            attack_curve = self.plots[node][sensor].addLine()
+                            attack_curve.setAngle(90)
+                            attack_curve.setPen(pg.mkPen('r', width=3))
+                            self.attack_curves[node][sensor].append(
+                                attack_curve)
+                        attack_curve.setValue((attack_data[0] - xOffset, 0))
+                    while len(self.attack_curves[node][sensor]) > len(attack_data):
+                        # Prune unnecessary attack curves
+                        curve: pg.InfiniteLine = self.attack_curves[node][sensor].pop()
+                        self.plots[node][sensor].removeItem(curve)
 
     def getVisibleNodes(self) -> List[str]:
         """ Returns a list of all nodes that are currently visible """

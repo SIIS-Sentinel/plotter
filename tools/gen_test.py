@@ -5,7 +5,7 @@ import random as rd
 import time
 import math
 
-from sql import session, Node, Sensor, Measurement, Event
+from sql import session, Node, Sensor, Measurement, Event, Attack
 from typing import List, Dict
 
 nodes: List[str] = [
@@ -85,6 +85,13 @@ def add_sensor(name: str, unit: str, avg: float, std: float, node: int):
         # session.flush()
 
 
+def add_attack(ts: float, attack_type: int, node: int) -> None:
+    newAttack: Attack = Attack(
+        timestamp=ts, attack_type=attack_type, node_id=node)
+    session.add(newAttack)
+    session.commit()
+
+
 if __name__ == "__main__":
     # Get missing nodes and sensors
     curr_nodes: List[str] = dq.get_all_nodes()
@@ -106,12 +113,19 @@ if __name__ == "__main__":
             add_sensor(sensor, "N/A", 0, 0, dq.get_node_id(node))
 
     # Start adding data on a loop
+    attack_counter: int = 0
+    attack_period: int = 10
     while True:
         meas_time = time.time()
         for node in nodes:
-            node_id = dq.get_node_id(node)
+            node_id: int = dq.get_node_id(node)
             for sensor in sensors[node]:
                 sensor_id = dq.get_sensor_id(sensor, node)
                 value = math.sin(time.time() / 3.) + rd.random() * 0
                 add_measurement(meas_time, value, sensor_id, node_id)
+        attack_counter += 1
+        if attack_counter >= attack_period:
+            attack_counter = 0
+            node_id = dq.get_node_id(rd.choice(nodes))
+            add_attack(meas_time, 0, node_id)
         time.sleep(0.5)
