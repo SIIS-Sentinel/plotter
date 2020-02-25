@@ -2,6 +2,7 @@ import sys
 import pyqtgraph as pg
 import data_query as dq
 import time
+import app_config as cfg
 
 from PyQt5 import QtGui, QtWidgets, QtCore
 from sql import session
@@ -23,8 +24,9 @@ class PlotsWindow(QtGui.QWidget):
         self.iter: int = 0
         self.maxiter: int = _maxIter
         self.profiling: bool = _profiling
-        self.curveColor: str = 'b'
-        self.attackCurveColor: str = 'r'
+        self.theme: str = "light"
+        self.curveColor: str = cfg.themes[self.theme]["data_curves"]
+        self.attackCurveColor: str = cfg.themes[self.theme]["attack_curves"]
         self.backgroundColor: str = pg.getConfigOption("background")
         self.session = _session
         self.app = _app
@@ -163,23 +165,26 @@ class PlotsWindow(QtGui.QWidget):
         self.updateLayout()
 
     def updateLayout(self):
-        """ Workaround to force the plots to havea correct size. Resizes the main window to its current size, forcing the layout to be updated """
+        """ Workaround to force the plots to have a correct size. Resizes the main window to its current size, forcing the layout to be updated """
         curr_width: int = self.frameGeometry().width()
         curr_height: int = self.frameGeometry().height()
         self.resize(curr_width, curr_height)
 
-    def updateBackground(self, themeBackground: str, themeAxis: str) -> None:
+    def updateTheme(self, theme: str) -> None:
         """ Updates the background of all plots to the given color """
+        themeColors: Dict[str, str] = cfg.themes[theme]
         for node in self.nodes:
-            self.nodeGrids[node].setBackground(themeBackground)
+            self.nodeGrids[node].setBackground(themeColors["background"])
             for sensor in self.sensors[node]:
-                self.plots[node][sensor].getAxis("bottom").setPen(themeAxis)
-                self.plots[node][sensor].getAxis("left").setPen(themeAxis)
+                self.plots[node][sensor].getAxis("bottom").setPen(themeColors["axis"])
+                self.plots[node][sensor].getAxis("left").setPen(themeColors["axis"])
                 self.plots[node][sensor].titleLabel.setText(node + "/" + sensor)
-                if themeAxis == "w":
-                    self.plots[node][sensor].titleLabel.setAttr("color", "000000")
-                else:
-                    self.plots[node][sensor].titleLabel.setAttr("color", "FFFFFF")
+                self.plots[node][sensor].titleLabel.setAttr("color", themeColors["text"])
+                self.curves[node][sensor].setPen(width=2, color=themeColors["data_curves"])
+                for attack_curve in self.attack_curves[node][sensor]:
+                    attack_curve.setPen(width=2, color=themeColors["attack_curves"])
+                self.curveColor = themeColors["data_curves"]
+                self.attackCurveColor = themeColors["attack_curves"]
 
 
 class SettingsWindow(QtGui.QWidget):
@@ -269,12 +274,10 @@ class SettingsWindow(QtGui.QWidget):
     def themeChanged(self) -> None:
         """ When the theme button is changed, swap the background color of the plots """
         if self.themeButton.isChecked():
-            backgroundTheme: str = 'k'
-            axisTheme: str = 'w'
+            theme: str = "dark"
         else:
-            backgroundTheme = 'w'
-            axisTheme = 'k'
-        self.master.updateBackground(backgroundTheme, axisTheme)
+            theme = "light"
+        self.master.updateTheme(theme)
 
     def nodeToggled(self) -> None:
         """ When a node checkbox is toggled, this function dynamically hides and shows the corresponding sensor checkboxes. It also unchecks sensors of unchecked nodes."""
@@ -300,7 +303,8 @@ class SettingsWindow(QtGui.QWidget):
 
 
 def main():
-    pg.setConfigOptions(background="w", foreground="k")
+    pg.setConfigOptions(background=cfg.themes["light"]["background"],
+                        foreground=cfg.themes["light"]["axis"])
     app = pg.QtGui.QApplication(sys.argv)
     app.setApplicationName("Plotter")
     plots_win: PlotsWindow = PlotsWindow(session)
