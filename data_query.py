@@ -1,8 +1,10 @@
-from sql import session, Node, Sensor, Measurement, Attack
+from bookkeeper.sql import create_sessions, Node, Sensor, Measurement, Attack
 from typing import List, Tuple, Dict
 from operator import itemgetter
 
 import config as cfg
+
+session = create_sessions(cfg.db_path)
 
 
 def get_node_id(name: str) -> int:

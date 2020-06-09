@@ -16,3 +16,5 @@ themes: dict = {
         "attack_curves": "g"
     }
 }
+
+db_path: str = "postgresql://pi:password@localhost/sentinel"

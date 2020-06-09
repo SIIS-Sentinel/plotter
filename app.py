@@ -5,7 +5,7 @@ import time
 import app_config as cfg
 
 from PyQt5 import QtGui, QtWidgets, QtCore
-from sql import session
+from bookkeeper.sql import create_sessions
 from typing import List, Dict, Tuple
 from functools import partial
 
@@ -307,6 +307,7 @@ def main():
                         foreground=cfg.themes["light"]["axis"])
     app = pg.QtGui.QApplication(sys.argv)
     app.setApplicationName("Plotter")
+    session = create_sessions(cfg.db_path)
     plots_win: PlotsWindow = PlotsWindow(session)
     sett_win: SettingsWindow = SettingsWindow(plots_win)
     sys.exit(app.exec_())
@@ -315,6 +316,7 @@ def main():
 def profile(maxIter: int):
     app = pg.QtGui.QApplication(sys.argv)
     app.setApplicationName("Plotter - Profiling")
+    session = create_sessions(cfg.db_path)
     plots_win = PlotsWindow(session, maxIter, True, app)
     sett_win = SettingsWindow(plots_win)
     sys.exit(app.exec_())

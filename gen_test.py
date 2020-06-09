@@ -5,8 +5,10 @@ import random as rd
 import time
 import math
 
-from sql import session, Node, Sensor, Measurement, Event, Attack
+from bookkeeper.sql import create_sessions, Node, Sensor, Measurement, Event, Attack
 from typing import List, Dict
+
+session = create_sessions(cfg.db_path)
 
 nodes: List[str] = [
     "node_1",

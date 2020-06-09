@@ -9,3 +9,5 @@ useless_sensor: List[str] = [
     "total_swap",
     "tracked_pid"
 ]
+
+db_path: str = "postgresql://pi:password@10.0.0.222/sentinel"
