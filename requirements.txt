@@ -1,6 +1,6 @@
 astroid==2.4.1
 autopep8==1.5.2
-bookkeeper @ git+https://github.com/AdrienCos/bookkeeper
+bookkeeper @ git+https://github.com/SIIS-Sentinel/bookkeeper
 cycler==0.10.0
 flake8==3.8.2
 importlib-metadata==1.6.0

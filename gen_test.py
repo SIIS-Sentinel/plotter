@@ -1,12 +1,14 @@
 # Generates test data used to test and debug plotter
 
-import data_query as dq
 import random as rd
 import time
 import math
+from typing import List, Dict
 
 from bookkeeper.sql import create_sessions, Node, Sensor, Measurement, Event, Attack
-from typing import List, Dict
+
+import data_query as dq
+import app_config as cfg
 
 session = create_sessions(cfg.db_path)
 

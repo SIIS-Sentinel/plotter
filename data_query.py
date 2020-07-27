@@ -1,8 +1,9 @@
-from bookkeeper.sql import create_sessions, Node, Sensor, Measurement, Attack
 from typing import List, Tuple, Dict
 from operator import itemgetter
 
-import config as cfg
+from bookkeeper.sql import create_sessions, Node, Sensor, Measurement, Attack
+
+import app_config as cfg
 
 session = create_sessions(cfg.db_path)
 

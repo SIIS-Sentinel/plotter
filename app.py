@@ -1,13 +1,15 @@
 import sys
-import pyqtgraph as pg
-import data_query as dq
 import time
-import app_config as cfg
-
-from PyQt5 import QtGui, QtWidgets, QtCore
-from bookkeeper.sql import create_sessions
 from typing import List, Dict, Tuple
 from functools import partial
+
+import pyqtgraph as pg
+from PyQt5 import QtGui, QtWidgets, QtCore
+
+from bookkeeper.sql import create_sessions
+
+import app_config as cfg
+import data_query as dq
 
 
 class PlotsWindow(QtGui.QWidget):
